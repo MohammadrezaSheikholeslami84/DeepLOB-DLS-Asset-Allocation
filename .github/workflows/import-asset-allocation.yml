@@ -29,6 +29,7 @@ jobs:
           SRC=/tmp/lob-source
           mkdir -p notebooks dashboard/.streamlit docs
 
+          # Current/final versions from the source branch tip.
           cp "$SRC/analysis/notebooks/asset_allocation/deeplob_dls_asset_allocation-version1.ipynb" notebooks/deeplob_dls_asset_allocation-version1.ipynb
           cp "$SRC/dashboard/asset_allocation/app.py" dashboard/app.py
           cp "$SRC/dashboard/asset_allocation/README.md" dashboard/README.md
@@ -37,8 +38,10 @@ jobs:
           cp "$SRC/docs/asset_allocation/README.md" docs/README.md
           cp "$SRC/docs/asset_allocation/DeepLOB_DLS_Asset_Allocation_Documentation.pdf" docs/DeepLOB_DLS_Asset_Allocation_Documentation.pdf
 
-          git -C "$SRC" show c190e82fc3fbc78f8d3ef39dc550bce53371bd8e:analysis/notebooks/asset_allocation/deeplob_dls_asset_allocation.ipynb > notebooks/deeplob_dls_asset_allocation.ipynb
-          git -C "$SRC" show c190e82fc3fbc78f8d3ef39dc550bce53371bd8e:docs/asset_allocation/DeepLOB_DLS_Report_documentation.pdf > docs/DeepLOB_DLS_Report_documentation.pdf
+          # c190... replaced/renamed these earlier files. Preserve the versions that
+          # existed immediately before that Mohammadreza-authored project-update commit.
+          git -C "$SRC" show 'c190e82fc3fbc78f8d3ef39dc550bce53371bd8e^:analysis/notebooks/asset_allocation/deeplob_dls_asset_allocation.ipynb' > notebooks/deeplob_dls_asset_allocation.ipynb
+          git -C "$SRC" show 'c190e82fc3fbc78f8d3ef39dc550bce53371bd8e^:docs/asset_allocation/DeepLOB_DLS_Report_documentation.pdf' > docs/DeepLOB_DLS_Report_documentation.pdf
 
           cat > CONTRIBUTIONS.md <<'EOF'
           # Contribution provenance
@@ -60,9 +63,9 @@ jobs:
           - `5abc186fa00f7b140df30fd092f7da3b61733601` — Add asset allocation README
           - `6a3d6f32e580e9c9bafb873573ebd4f12e16c0dc` — Add asset allocation notebook report and dashboard
 
-          Files that were later renamed or removed from the source branch tip are preserved
-          here from their latest relevant Mohammadreza-authored revision so the standalone
-          repository does not lose earlier work.
+          Files later renamed or removed from the source branch tip are preserved here from
+          the version immediately before the replacement commit so the standalone repository
+          does not lose earlier Mohammadreza-authored work.
           EOF
 
       - name: Commit imported contribution files
