@@ -1,17 +1,39 @@
-# DeepLOB–DLS Asset Allocation Module
+<div align="center">
 
-A complete **research-to-execution asset-allocation pipeline** built on top of DeepLOB signals.
+# DeepLOB + DLS Asset Allocation
 
-The project combines:
+### From limit-order-book prediction to portfolio allocation, execution, audit, and interactive replay
 
-- **limit-order-book and OHLCV feature engineering**;
-- a pretrained **DeepLOB** directional signal model;
-- a learned **Deep Learning Sharpe (DLS)** portfolio allocator;
-- a transaction-cost-aware **execution/backtesting engine**;
-- detailed audit outputs; and
-- an interactive **Streamlit trading-engine replay dashboard**.
+**DeepLOB signals → DLS portfolio weights → realistic execution → auditable trading-engine replay**
 
-The key design idea is that **prediction and portfolio construction are different problems**. DeepLOB estimates what may happen to each asset; DLS decides how the available capital should be distributed across the cross-section; the execution layer then determines what can actually be traded under realistic constraints.
+</div>
+
+---
+
+## Overview
+
+This repository contains a complete **research-to-execution asset-allocation workflow** built on top of DeepLOB market signals.
+
+The project combines four distinct layers:
+
+1. **Market representation** — causal LOB/OFI and OHLCV feature engineering.
+2. **Signal generation** — a pretrained DeepLOB model produces directional probabilities for each asset.
+3. **Portfolio construction** — a Deep Learning Sharpe (DLS) network converts those signals into cross-sectional target weights.
+4. **Execution and audit** — the target portfolio is translated into feasible orders, fills, holdings, metrics, CSV audit files, and an interactive Streamlit replay application.
+
+The central idea is that **forecasting market direction and allocating capital are different problems**. DeepLOB answers:
+
+> What does the model believe may happen to this asset?
+
+DLS answers:
+
+> Given all asset-level signals and their recent history, how should portfolio capital be distributed?
+
+The execution engine then answers:
+
+> Which desired portfolio changes can actually be implemented after trading constraints and costs?
+
+This separation makes the full decision chain inspectable instead of treating the neural-network output as a direct trading instruction.
 
 ---
 
@@ -19,89 +41,94 @@ The key design idea is that **prediction and portfolio construction are differen
 
 Latest documented executed run:
 
-| Metric | Value |
+| Metric | DeepLOB + DLS |
 |---|---:|
-| Notebook | `deeplob_dls_asset_allocation-version1.ipynb` |
-| Mode | Kaggle Edition |
-| Initial Capital | RMB 50,000,000 |
-| Out-of-sample period | D485 to D726 |
-| Metric days | 242 |
-| Selected DLS seed | 33 |
-| Final portfolio value | RMB 73.05M |
+| Initial capital | **RMB 50,000,000** |
+| OOS period | **D485–D726** |
+| OOS trading days | **242** |
+| Selected DLS seed | **33** |
+| Final portfolio value | **≈ RMB 73.05M** |
 | Total return | **46.11%** |
-| CAGR | **46.11%** |
 | Annualized Sharpe | **1.20** |
-| Maximum Drawdown | **-15.77%** |
+| Maximum drawdown | **−15.77%** |
 | Score proxy | **20.41** |
 | Average holdings/day | **235.3** |
 
 ### DeepLOB-only baseline vs. DeepLOB + DLS
 
-| Model | Return | Sharpe | MDD | Score | Avg Holdings |
-|---|---:|---:|---:|---:|---:|
-| Original DeepLOB-only exact | 40.88% | 0.96 | -24.91% | 15.05 | 692.7 |
-| **DeepLOB + DLS** | **46.11%** | **1.20** | **-15.77%** | **20.41** | **235.3** |
+| Metric | Base DeepLOB | DeepLOB + DLS |
+|---|---:|---:|
+| Total return | 40.88% | **46.11%** |
+| Sharpe ratio | 0.96 | **1.20** |
+| Maximum drawdown | −24.91% | **−15.77%** |
+| Score proxy | 15.05 | **20.41** |
+| Average holdings | 692.7 | **235.3** |
+| Total trading costs | ≈ RMB 2.10M | ≈ RMB 3.08M |
 
-The documented run therefore shows a more selective portfolio with higher return, higher Sharpe and a less severe drawdown, at the cost of greater turnover and transaction costs.
+In the documented run, the DLS layer therefore produced a **more selective portfolio**, higher return and Sharpe, and a less severe maximum drawdown, while also generating more active reallocation and therefore higher transaction costs.
 
 ---
 
 # End-to-End Pipeline
 
 <p align="center">
-  <img src="assets/architecture-pipeline.svg" alt="End-to-end DeepLOB + DLS pipeline" width="860">
+  <img src="assets/architecture-pipeline.svg" alt="End-to-end DeepLOB + DLS portfolio pipeline" width="900">
 </p>
 
-The pipeline should be read as a sequence of **data transformation → prediction → allocation → execution → audit** stages.
+The pipeline is designed as a sequence of explicit state transitions:
 
 ```text
-Raw LOB + daily OHLCV data
+Raw LOB + Daily OHLCV
         ↓
-Causal feature engineering
+Causal Feature Engineering
         ↓
-DeepLOB input tensor
+DeepLOB Input Tensor
         ↓
-DeepLOB directional probabilities
+DeepLOB Directional Probabilities
         ↓
-DLS signal-feature panel
+DLS Signal Feature Panel
         ↓
-50-day cross-sectional DLS sequence
+50-Day Cross-Sectional Sequence
         ↓
-ShifuDLSNet portfolio allocator
+ShifuDLSNet Portfolio Allocator
         ↓
-Tradability + signal-quality post-processing
+Tradability + Quality Filtering
         ↓
-Target portfolio weights
+Target Portfolio Weights
         ↓
-Execution / backtest engine
+Execution / Backtest Engine
         ↓
-Orders → fills → holdings → cash → PnL
+Submitted Orders
         ↓
-Metrics + audit CSVs + Streamlit replay
+Executed Trades
+        ↓
+End-of-Day Holdings + Cash + PnL
+        ↓
+Metrics + Audit CSVs + Streamlit Replay
 ```
 
 ## Stage 1 — Market Data and Feature Engineering
 
-The notebook combines **LOB snapshots** with **daily OHLCV information** before DeepLOB inference.
+The notebook combines **limit-order-book information** with **daily OHLCV-derived variables** before DeepLOB inference.
 
-### LOB feature block
+### LOB / OFI block
 
 The LOB representation uses:
 
-- 10 price/volume levels on both sides of the book;
+- 10 order-book levels;
 - 24 intraday time slots;
-- order-flow imbalance (OFI) calculations;
-- causal rolling normalization based only on previous days.
+- order-flow imbalance (OFI) features;
+- causal rolling normalization using historical information only.
 
-The flattened OFI grid contributes:
+The flattened intraday OFI grid contributes:
 
 ```text
 24 time slots × 10 levels = 240 OFI features
 ```
 
-### Daily feature block
+### Daily market block
 
-The daily block adds 19 market features, including:
+The daily block adds 19 variables, including:
 
 - 1/5/10/20-day returns;
 - 5-day and 20-day volatility;
@@ -112,55 +139,55 @@ The daily block adds 19 market features, including:
 - open-to-close return;
 - high-low range;
 - close-to-VWAP distance;
-- raw open, close, volume, low and high values.
+- raw open, close, volume, low, and high values.
 
-The final DeepLOB feature width is therefore:
+The final feature width is therefore:
 
 ```text
-240 OFI features + 19 daily features = 259 features
+240 LOB/OFI features + 19 daily features = 259 features
 ```
 
-A 50-day window is assembled into the DeepLOB input tensor:
+A rolling 50-day sequence is assembled into the DeepLOB tensor:
 
 ```text
 B × 1 × 50 × 259
 ```
 
-The causality of feature normalization matters: current-day information is not allowed to leak backward into historical normalization statistics.
+The feature preparation is deliberately causal so current or future observations are not silently introduced into historical normalization statistics.
 
 ---
 
 ## Stage 2 — DeepLOB Signal Generation
 
-DeepLOB is used strictly as the **signal-generation network**. It does not decide portfolio weights and it does not directly submit trades.
+DeepLOB is used as the **predictive signal layer**, not as the portfolio allocator.
 
 <p align="center">
   <img src="assets/deeplob-dls-network-architecture.svg" alt="DeepLOB and DLS network architecture" width="980">
 </p>
 
-The pretrained DeepLOB architecture contains:
+The pretrained network contains convolutional feature-extraction blocks, an Inception-style module, a temporal LSTM, and a classification head.
 
-1. convolutional feature-extraction blocks;
-2. an Inception-style parallel convolution module;
-3. a temporal LSTM;
-4. a fully connected classification head; and
-5. a softmax output layer.
-
-For each asset `i` and signal day `t`, the network produces three probabilities:
+For every asset `i` and signal day `t`, DeepLOB produces:
 
 ```text
 P(down), P(flat), P(up)
 ```
 
-These probabilities form a complete directional state rather than a single hard label. This is important because DLS can distinguish, for example, between a high-confidence bullish signal and a weakly bullish signal dominated by `P(flat)`.
+with:
+
+```text
+P(down) + P(flat) + P(up) = 1
+```
+
+These probabilities are more informative than a single hard class label. For example, two assets can both be labeled as bullish while having very different probability distributions and therefore very different confidence levels.
 
 ---
 
 ## Stage 3 — DeepLOB Probabilities → DLS Features
 
-The three DeepLOB probabilities are converted into a five-dimensional per-asset feature vector.
+The three DeepLOB outputs are transformed into a five-dimensional signal representation.
 
-Two additional quantities are constructed:
+Two derived variables are added:
 
 ```text
 signal_score = P(up) - P(down)
@@ -168,135 +195,132 @@ signal_score = P(up) - P(down)
 confidence = |signal_score| × (1 - P(flat))
 ```
 
-So each asset/day is represented by:
+Each asset/day is therefore represented as:
 
 ```text
 [P(down), P(flat), P(up), signal_score, confidence]
 ```
 
-Interpretation:
-
-| Feature | Role |
+| Feature | Interpretation |
 |---|---|
 | `P(down)` | bearish probability |
 | `P(flat)` | neutral / low-direction probability |
 | `P(up)` | bullish probability |
 | `signal_score` | signed directional edge |
-| `confidence` | strength of that direction after penalizing flatness |
+| `confidence` | directional strength after penalizing flatness |
 
-This converts DeepLOB from a classifier into a richer signal source that the portfolio network can consume.
+This is the bridge between DeepLOB's classification output and DLS's portfolio-allocation problem.
 
 ---
 
-## Stage 4 — Temporal DLS Input Construction
+## Stage 4 — DLS Temporal Input Construction
 
-DLS does not look at only one signal day. It consumes the **history of probability panels**.
+DLS does not make a portfolio decision using only one signal day. It receives a **history of cross-sectional probability panels**.
 
 <p align="center">
-  <img src="assets/dls-dataflow-pipeline.svg" alt="DLS data flow" width="860">
+  <img src="assets/dls-dataflow-pipeline.svg" alt="DLS probability-panel data flow" width="860">
 </p>
 
-For `N = 2,306` assets, each day contains:
+The documented universe contains:
 
 ```text
-N × 5 = 2,306 × 5 = 11,530 values
+N = 2,306 assets
 ```
 
-The notebook stacks a 50-day history:
+Each day therefore contains:
 
 ```text
-50 × N × 5
+2,306 assets × 5 signal features = 11,530 values
 ```
 
-Each day's asset-feature panel is flattened to `5N`, producing a temporal sequence that is fed to the DLS LSTM.
+The network uses a 50-day lookback:
 
-This means the allocator receives information about:
+```text
+50 × 2,306 × 5
+```
 
-- how bullish/bearish probabilities evolve over time;
-- how confidence changes;
-- how the signal distribution changes across the entire stock universe; and
-- how today's opportunity set relates to recent signal history.
+At each temporal step, the cross-sectional asset-feature panel is flattened to `5N = 11,530`, producing a sequence for the DLS LSTM.
+
+As a result, the allocator can observe not only today's probabilities but also how the **market-wide signal state** has evolved over recent days.
 
 ---
 
 ## Stage 5 — ShifuDLSNet Portfolio Allocation
 
-The DLS network uses:
+The portfolio network uses the following main architecture:
 
 ```text
-Input size:   5N = 11,530
-Lookback:     50 days
-LSTM hidden:  64
-Linear head:  64 → N assets
-Output:       asset-level logits
+Input size      : 11,530
+Temporal lookback: 50 days
+LSTM hidden size: 64
+Projection      : 64 → 2,306 assets
+Output          : asset-level allocation logits
 ```
 
-Before softmax, non-tradable assets are suppressed using a decision-time entry mask. Masked softmax then produces a **long-only target-weight vector**.
-
-Conceptually:
+The allocation sequence is:
 
 ```text
-DeepLOB probabilities
+DeepLOB probability history
         ↓
-50-day signal history
+DLS LSTM representation
         ↓
-LSTM representation of market-wide signal state
+Asset-level logits
         ↓
-asset-level logits
+Tradability mask
         ↓
-tradability mask
+Masked softmax
         ↓
-masked softmax
-        ↓
-raw portfolio weights
+Long-only raw target weights
 ```
 
-The allocator therefore learns **cross-sectional capital allocation**, rather than simply buying all stocks with `P(up)` above a fixed threshold.
+The masked softmax ensures non-tradable names receive no allocation and generates a long-only cross-sectional weight vector.
+
+This is substantially different from a rule such as "buy every asset whose `P(up)` exceeds a threshold." DLS learns how to distribute capital across the available opportunity set.
 
 ---
 
 ## Stage 6 — Portfolio-Level DLS Objective
 
-DLS is trained with a differentiable **portfolio objective**, not with classification accuracy.
+The DLS model is trained with a **portfolio objective**, rather than a classification loss.
 
 <p align="center">
-  <img src="assets/dls-objective-components.svg" alt="DLS objective components" width="880">
+  <img src="assets/dls-objective-components.svg" alt="DLS portfolio objective components" width="880">
 </p>
 
-The objective combines reward and penalty terms:
+The objective incorporates portfolio-level reward and penalty terms.
 
-### Reward terms
+### Reward components
 
 - Sharpe ratio;
 - Sortino ratio.
 
-### Risk / trading penalties
+### Risk and implementation penalties
 
-- maximum drawdown;
+- drawdown;
 - turnover;
-- concentration;
+- portfolio concentration;
 - inventory / gross-exposure deviation;
-- explicit commission exposure;
+- commission exposure;
 - optional sparsity diagnostics.
 
-The final sparsity coefficient is zero in the documented configuration. The latest notebook also does **not** use an active quadratic market-impact penalty; cost control is primarily represented through turnover/commission-style terms.
+The documented final sparsity coefficient is zero. The current notebook also does not activate a quadratic market-impact term, so implementation-cost control is represented mainly through turnover and commission-related components.
 
-This objective lets the model optimize the economic quality of a portfolio path rather than only the accuracy of individual stock predictions.
+The key point is that the model is optimized for the **economic behavior of the portfolio path**, not merely for per-asset classification accuracy.
 
 ---
 
-## Stage 7 — Signal Quality and Target-Weight Post-Processing
+## Stage 7 — Tradability, Quality Filtering, and Post-Processing
 
-Raw softmax weights are not immediately traded.
+The raw DLS softmax output is not traded directly.
 
-The notebook applies a second layer of portfolio construction rules:
+The portfolio-construction layer applies additional rules:
 
 1. remove non-tradable assets;
-2. apply a DeepLOB-derived quality filter;
-3. remove very small weights;
-4. cap the maximum number of positions;
-5. protect minimum-holdings feasibility;
-6. normalize surviving positions to target gross exposure.
+2. require sufficient DeepLOB directional quality;
+3. remove very small target weights;
+4. cap the number of active names;
+5. maintain minimum-holdings feasibility;
+6. renormalize the surviving allocation to the desired gross exposure.
 
 The documented signal-quality thresholds are:
 
@@ -305,104 +329,112 @@ confidence >= 0.02
 signal_score >= 0.00
 ```
 
-If too few names pass, the workflow can fall back to top-confidence tradable assets rather than allowing an infeasible portfolio.
-
-Important portfolio-construction settings include:
+Important portfolio parameters include:
 
 | Parameter | Value |
 |---|---:|
-| Target gross exposure | 0.95 |
-| Maximum positions | 500 |
-| Minimum target weight | 0.0005 |
-| Rebalance band | 0.006 |
-| Minimum holdings | 10 |
+| Target gross exposure | **0.95** |
+| Maximum DLS positions | **500** |
+| Minimum target weight | **0.0005** |
+| Rebalance band | **0.006** |
+| Minimum holdings | **10** |
+
+If too few assets survive the quality filter, the implementation can fall back to top-confidence tradable assets to avoid an infeasible state.
 
 ---
 
 ## Stage 8 — No-Lookahead Timing
 
-The workflow explicitly separates signal generation, trading and outcome evaluation:
+A critical part of the workflow is the separation between **observation**, **execution**, and **evaluation**.
 
 ```text
-Day t      : DeepLOB observes information and creates signals
+Day t      : DeepLOB observes available information and creates signals
 Day t + 1  : portfolio decision is traded
-Day t + 2  : future trade outcome is evaluated
+Day t + 2  : subsequent trade outcome is evaluated
 ```
 
-The final DLS execution configuration uses open-price decision/execution conventions so same-day close information is reserved for end-of-day valuation and metric logging, rather than being used for same-day order sizing.
+The dashboard also exposes both `signal_day_id` and `trade_day_id` so this shift is visible during replay.
 
-This timing discipline is one of the central safeguards against lookahead bias in the notebook.
+This design helps prevent the model from sizing a position with information that would not have been available at decision time.
 
 ---
 
 ## Stage 9 — Execution / Backtest Engine
 
-The execution layer converts **desired portfolio weights** into **feasible orders and fills**.
+The execution engine converts desired target weights into feasible orders and holdings.
 
 <p align="center">
   <img src="assets/execution-engine-flowchart.svg" alt="Execution engine flowchart" width="920">
 </p>
 
-For every trading day, the engine:
+For each trade day, the engine approximately performs the following sequence:
 
-1. computes portfolio value from cash and current holdings;
-2. converts current positions into current weights;
-3. calculates the gap between target and current weights;
-4. ignores small gaps inside the rebalance band;
-5. processes sells first to release cash;
-6. processes buys subject to available cash and tradability;
-7. enforces 100-share lot sizes;
-8. reduces order sizes when the full order is not feasible;
-9. applies commission and stamp-duty rules;
-10. updates cash, shares, realized weights and EOD holdings;
-11. writes detailed trade, holding and decision audit records.
+1. value the current portfolio;
+2. compute current portfolio weights;
+3. compare current weights with DLS targets;
+4. ignore changes inside the rebalance band;
+5. process sells first to release cash;
+6. process buys subject to available cash and tradability;
+7. apply lot-size constraints;
+8. reduce quantities if the desired trade is infeasible;
+9. apply commissions and stamp duty;
+10. update cash and shares;
+11. create end-of-day holdings and detailed audit records.
 
-Key execution parameters:
+Execution settings include:
 
 | Parameter | Value |
 |---|---:|
-| Commission rate | 0.0001 |
-| Stamp duty rate | 0.0005 |
-| Minimum commission | 5 |
-| Lot size | 100 |
-| Cash buffer | 0.05 |
-| Minimum holdings | 10 |
+| Commission rate | **0.0001** |
+| Stamp-duty rate | **0.0005** |
+| Minimum commission | **5** |
+| Lot size | **100 shares** |
+| Cash buffer | **5%** |
 
-The result is an explicit distinction between:
+This creates an important distinction:
 
 ```text
-model target weight
-    ≠ submitted order
-    ≠ filled trade
-    ≠ final end-of-day weight
+DLS target weight
+        ≠
+submitted order
+        ≠
+filled trade
+        ≠
+final EOD portfolio weight
 ```
 
-That distinction is what makes the audit layer and dashboard useful.
+That distinction is preserved in the exported audit files and is one of the main reasons the replay dashboard is useful.
 
 ---
 
-# Notebooks
+# Notebook Guide
 
-The repository contains two notebook artifacts:
+The repository currently contains two notebook artifacts:
 
-| Notebook | Purpose |
+| Notebook | Role |
 |---|---|
-| [`notebooks/deeplob_dls_asset_allocation.ipynb`](notebooks/deeplob_dls_asset_allocation.ipynb) | Full working DeepLOB + DLS asset-allocation notebook containing the end-to-end research workflow and generated outputs. |
-| [`notebooks/deeplob_dls_asset_allocation-version1.ipynb`](notebooks/deeplob_dls_asset_allocation-version1.ipynb) | Versioned/executed notebook snapshot corresponding to the documented Kaggle-style experiment and result reporting. |
+| [`notebooks/deeplob_dls_asset_allocation.ipynb`](notebooks/deeplob_dls_asset_allocation.ipynb) | Full working DeepLOB + DLS research notebook containing the end-to-end asset-allocation workflow and generated outputs. |
+| [`notebooks/deeplob_dls_asset_allocation-version1.ipynb`](notebooks/deeplob_dls_asset_allocation-version1.ipynb) | Versioned/executed experiment snapshot corresponding to the documented Kaggle-oriented run and reported metrics. |
 
-## What the notebooks do
+The notebooks are more than training scripts: together they implement the entire experiment lifecycle.
 
-The notebook workflow is substantially more than a model-training script. It performs the complete experiment lifecycle:
+## 1. Runtime and Input Discovery
 
-### 1. Input discovery and runtime setup
+The Kaggle-oriented version recursively discovers required files under:
 
-The Kaggle-oriented workflow recursively searches `/kaggle/input` for:
+```text
+/kaggle/input
+```
 
-- in-sample daily OHLCV parquet data;
-- in-sample LOB parquet data;
-- out-of-sample daily OHLCV data;
-- out-of-sample LOB data;
-- the pretrained `best_model_alpha_0015.pt` DeepLOB checkpoint.
+Expected inputs include equivalents of:
+
+```text
+daily_data_in_sample.parquet
+lob_data_in_sample.parquet
+daily_data_release_stage_out_of_sample.parquet
+lob_data_release_stage_out_of_sample.parquet
+best_model_alpha_0015.pt
+```
 
 Generated artifacts are written under:
 
@@ -410,356 +442,429 @@ Generated artifacts are written under:
 /kaggle/working/shifu_dls_oos/
 ```
 
-and packaged into:
+and can be packaged into:
 
 ```text
 /kaggle/working/shifu_dls_oos_results.zip
 ```
 
-### 2. Data preparation
+## 2. Data Preparation
 
-The notebook:
+The notebook loads and aligns in-sample and out-of-sample daily and LOB data, then constructs the causal OFI grid and daily feature block.
 
-- loads in-sample and OOS daily data;
-- loads tens of millions of LOB rows;
-- constructs the fixed intraday OFI grid;
-- performs causal feature normalization;
-- builds daily market features;
-- aligns asset/day identifiers across sources;
-- constructs 50-day DeepLOB feature windows.
+The documented run covers:
 
-### 3. DeepLOB inference
+| Item | Value |
+|---|---:|
+| Assets | **2,306** |
+| Total trading days | **726** |
+| Warmup / in-sample period | **D001–D484** |
+| OOS period | **D485–D726** |
+| OOS days | **242** |
+| Combined OHLCV rows | **1,606,720** |
+| Processed LOB rows | **37,572,229** |
+| DeepLOB signal days | **675** |
 
-It loads the pretrained checkpoint and produces the three-class probability panel across assets and days.
+## 3. DeepLOB Inference
 
-These raw probabilities are also exported so the original DeepLOB-only strategy and the DLS-enhanced strategy can be inspected from the same underlying signal source.
+The pretrained DeepLOB checkpoint is loaded and used to generate three-class directional probabilities across the stock universe.
 
-### 4. DLS dataset construction
+Those raw probabilities are retained so both the original DeepLOB strategy and the DLS-enhanced strategy can be reconstructed from the same signal source.
 
-The notebook builds the 5-feature probability panel and 50-day temporal DLS samples, together with:
+## 4. DLS Dataset Construction
 
-- entry/tradability masks;
+The notebook builds:
+
+- the five-feature DeepLOB-derived signal panel;
+- 50-day temporal DLS sequences;
+- tradability / entry masks;
 - future-return labels;
-- return-validity masks;
-- volatility scaling inputs;
-- chronological train/validation sequences.
+- validity masks;
+- volatility-related inputs;
+- chronological train/validation samples.
 
-### 5. DLS training
+## 5. DLS Training
 
-The DLS model is trained chronologically using Adam, early stopping and checkpoint restoration. Important settings include:
+Main training parameters:
 
 | Hyperparameter | Value |
 |---|---:|
-| Lookback | 50 |
-| Hidden size | 64 |
-| Batch size | 64 |
-| Max epochs | 100 |
-| Learning rate | 0.001 |
-| Early-stopping patience | 15 |
+| Lookback | **50** |
+| Hidden size | **64** |
+| Batch size | **64** |
+| Maximum epochs | **100** |
+| Learning rate | **0.001** |
+| Early-stopping patience | **15** |
 
-### 6. Seed search
+Training uses chronological data splits, Adam optimization, early stopping, and restoration of the selected model state.
 
-The workflow evaluates multiple random seeds:
+## 6. Seed Search
+
+Multiple neural-network initializations are evaluated:
 
 ```text
 7, 11, 22, 33, 42, 55, 77, 88, 101, 123
 ```
 
-The documented experiment selects seed **33**.
+The documented run selects seed **33**.
 
 <p align="center">
   <img src="assets/dls-seed-search-ranking.svg" alt="DLS seed search ranking" width="880">
 </p>
 
-### 7. Backtesting and baseline comparison
+## 7. Dual Backtest
 
-The notebook executes both:
+The notebook executes two strategies:
 
-- the original **DeepLOB-only exact baseline**; and
-- the **DeepLOB + DLS** portfolio.
+- **Original DeepLOB-only exact baseline**;
+- **DeepLOB + DLS allocation strategy**.
 
-This enables direct comparison of return, Sharpe, drawdown, transaction costs, turnover and holdings rather than evaluating DLS in isolation.
+This makes it possible to evaluate whether the allocation layer changes the economic use of the underlying DeepLOB signals instead of evaluating DLS in isolation.
 
 <p align="center">
-  <img src="assets/oos-performance-comparison.svg" alt="OOS performance comparison" width="860">
+  <img src="assets/oos-performance-comparison.svg" alt="Out-of-sample performance comparison" width="860">
 </p>
 
-### 8. Audit-output generation
+## 8. Audit Export
 
-The notebook exports detailed CSVs used by the dashboard, including:
+A major design feature is the export of detailed intermediate states rather than only final performance numbers.
+
+Examples include:
 
 - raw DeepLOB probabilities;
 - daily DLS target weights;
-- DLS weight-step diagnostics;
-- trade-level fills;
-- holding snapshots;
-- baseline daily logs;
-- baseline/DLS submitted orders;
-- model-comparison metrics;
-- training history;
-- seed-search summary.
+- weight-step decision diagnostics;
+- submitted orders;
+- filled trades;
+- end-of-day holdings;
+- baseline daily portfolio logs;
+- final strategy-comparison metrics;
+- DLS training history;
+- seed-search results.
 
-### 9. Static diagnostics
+These files power the Streamlit replay application.
 
-The run also generates portfolio and weight diagnostics.
+## 9. Static Diagnostics
+
+The research notebook also generates static diagnostics for quick inspection.
 
 <p align="center">
   <img src="assets/static-backtest-report.svg" alt="Static DLS backtest report" width="960">
 </p>
 
 <p align="center">
-  <img src="assets/weight-distribution-diagnostics.svg" alt="Weight distribution diagnostics" width="900">
+  <img src="assets/weight-distribution-diagnostics.svg" alt="DLS weight-distribution diagnostics" width="900">
 </p>
 
-These figures provide a quick view of equity, returns, drawdowns, rolling Sharpe, holdings, transaction costs, target-weight concentration and the evolution of active positions.
+The plots cover portfolio value, returns, drawdown, rolling Sharpe, holdings, transaction costs, target-weight distributions, and the evolution of portfolio concentration.
 
 ---
 
 # Streamlit Dashboard — Trading Engine Replay
 
-The dashboard is intentionally designed as an **audit and replay application**, not as a static chart viewer.
+The dashboard is an **interactive event-driven audit application**, not a static CSV viewer.
 
-Its core state transition is:
+It reconstructs the same trading day as a state machine:
 
 ```text
 DeepLOB probabilities
-    ↓
-signal score + confidence
-    ↓
-entry / tradability mask
-    ↓
-quality filter
-    ↓
-DLS target weights
-    ↓
-submitted orders
-    ↓
-executed trades
-    ↓
-end-of-day holdings
-    ↓
-portfolio state + model comparison
+        ↓
+Signal Score + Confidence
+        ↓
+Entry / Tradability Mask
+        ↓
+Quality Filter
+        ↓
+DLS Target Weights
+        ↓
+Submitted Orders
+        ↓
+Executed Trades
+        ↓
+End-of-Day Holdings
+        ↓
+Portfolio State + Model Comparison
 ```
 
-The purpose is to answer not only **“How did the strategy perform?”** but also **“Why did this asset receive this action on this day?”**
+The goal is to answer both:
 
-## Dashboard data model
+> How did the strategy perform?
 
-At every replay step, the app reconstructs a common daily `EngineState` containing the current day and the associated:
+and:
 
-- raw DeepLOB signals;
-- DLS weight-step rows;
-- DLS filled trades;
-- DLS holdings;
-- DLS debug/optimizer state;
-- DLS submitted orders;
-- baseline DeepLOB submitted orders.
-
-All views therefore inspect the same replay day and the same underlying engine state.
-
-## Global status strip
-
-The top-level status area shows the current state of the strategy through cards such as:
-
-- **Engine Clock** — current trade day and corresponding signal day;
-- **DLS Equity Proxy** — reconstructed DLS equity;
-- **Return Proxy** — cumulative DLS return;
-- **Target Gross** — optimizer gross-exposure target;
-- **Executed Turnover** — actually filled buy/sell notional;
-- **EOD Holdings** — active end-of-day positions.
-
-## Pipeline stage line
-
-One of the most useful dashboard components is the six-stage engine line:
-
-```text
-Signal Bus
-   → Entry Mask
-   → Quality Filter
-   → DLS Optimizer
-   → Execution
-   → Portfolio State
-```
-
-Each stage has a different interpretation:
-
-### Signal Bus
-Shows the raw DeepLOB prediction universe and the distribution of `up`, `flat` and `down` signals. It represents **prediction availability**, not orders.
-
-### Entry Mask
-Shows which signaled assets are actually eligible for trading after checking valid execution information and tradability.
-
-### Quality Filter
-Shows which eligible assets have enough directional strength and confidence to continue to portfolio allocation.
-
-### DLS Optimizer
-Shows how many names receive non-zero DLS target weights and how those weights use the target gross exposure.
-
-### Execution
-Shows what was actually traded after rebalance bands, cash constraints, lot sizes, fees and feasibility checks.
-
-### Portfolio State
-Shows the resulting holdings after execution.
-
-This visualization makes the transformation from **prediction → allocation → real position** directly inspectable.
+> Why did this particular asset receive this particular action on this particular day?
 
 ---
 
-## Dashboard Views
+# Dashboard Showcase
 
-The app exposes several dedicated views from the sidebar.
+## 1. Engine Replay
 
-### 1. Engine Replay
+<p align="center">
+  <img src="assets/dashboard-engine-replay.webp" alt="Shifu DeepLOB + DLS Engine Replay dashboard" width="100%">
+</p>
 
-The main operational view for moving through the 242-day OOS test one day at a time.
+The **Engine Replay** view is the high-level trading-engine cockpit. The selected OOS day is reconstructed as a complete decision state rather than a single return observation.
 
-It is useful for answering questions such as:
+The upper KPI strip shows information such as:
 
-- How many DeepLOB signals existed today?
+- engine clock / current trade day;
+- corresponding signal day;
+- DLS equity proxy;
+- cumulative return proxy;
+- target gross exposure;
+- executed turnover;
+- end-of-day holdings count.
+
+### Six-stage decision funnel
+
+The central stage line summarizes the full trading transformation:
+
+```text
+01 Signal Bus
+      ↓
+02 Entry Mask
+      ↓
+03 Quality Filter
+      ↓
+04 DLS Optimizer
+      ↓
+05 Execution
+      ↓
+06 Portfolio State
+```
+
+For the displayed first replay day in the screenshot, the flow is visually traceable from roughly **2,027 raw DeepLOB signals**, to **284 entry candidates**, **246 quality-passed names**, **237 DLS targets**, **236 executed names**, and **236 final holdings**.
+
+Each stage has a different meaning:
+
+- **Signal Bus** — all usable DeepLOB probability rows for the signal day.
+- **Entry Mask** — assets eligible for trading on the corresponding execution day.
+- **Quality Filter** — candidates satisfying directional confidence requirements.
+- **DLS Optimizer** — names receiving a non-zero target allocation.
+- **Execution** — names that actually generated filled trades after implementation constraints.
+- **Portfolio State** — active end-of-day holdings after execution.
+
+The view also provides a reconstructed DLS-vs-base return path, a compact engine-event log, and a visual decision funnel.
+
+### Replay controls
+
+The left control panel supports:
+
+- Previous / Next day;
+- replay-step slider;
+- Play / Pause;
+- Reset;
+- playback speeds such as `0.5x`, `1x`, `2x`, `5x`, and `10x`;
+- loop playback;
+- optional auto-play refresh;
+- fast rendering mode for smoother animated replay.
+
+This makes the backtest behave more like a replayable simulation than a fixed report.
+
+---
+
+## 2. Model Comparison Cockpit
+
+<p align="center">
+  <img src="assets/dashboard-model-comparison.jpg" alt="DeepLOB + DLS model comparison dashboard" width="100%">
+</p>
+
+The **Model Comparison** view focuses on the practical question behind the project:
+
+> Did the DLS allocation layer improve the economic use of the original DeepLOB signals?
+
+The cockpit displays the final headline metrics side by side and visualizes differences in portfolio behavior.
+
+It includes:
+
+- total return comparison;
+- Sharpe ratio comparison;
+- maximum-drawdown comparison;
+- final trading costs;
+- DLS vs. base equity/return paths;
+- drawdown paths;
+- impact deltas such as return, Sharpe, drawdown, holdings and costs;
+- the assets with the largest DLS-vs-base order differences for the selected day.
+
+This last chart is especially useful because two models can generate similar headline returns while producing very different **orders and capital allocations** underneath.
+
+---
+
+## 3. Portfolio State
+
+<p align="center">
+  <img src="assets/dashboard-portfolio-state.webp" alt="End-of-day portfolio state dashboard" width="100%">
+</p>
+
+The **Portfolio State** view answers:
+
+> What does the strategy actually hold at the end of the selected replay day?
+
+The screen combines a ranked top-holdings chart with the exact holdings table.
+
+For each position, the table can expose fields such as:
+
+- asset identifier;
+- shares held;
+- closing price;
+- market value;
+- end-of-day portfolio weight.
+
+This makes it possible to move from aggregate performance back to the exact position-level state of the portfolio.
+
+---
+
+# Dashboard Views and Capabilities
+
+The sidebar exposes several specialized views.
+
+## Engine Replay
+
+Best for understanding the entire state transition of one OOS day. It answers:
+
+- How many raw signals existed?
 - How many were tradable?
-- How many survived the confidence filter?
-- How many names did DLS target?
-- How many trades actually filled?
-- What did the portfolio hold after execution?
+- How many survived the quality filter?
+- How many assets did DLS target?
+- Which trades executed?
+- What remained in the portfolio afterward?
 
-### 2. Decision Inspector
+## Decision Inspector
 
-This is the most detailed asset-level audit view.
+The **Decision Inspector** is the most detailed asset-level audit view.
 
-For an individual asset, the decision chain can include:
+It links the full decision chain for each asset, including fields such as:
 
-- `P(down)`;
-- `P(flat)`;
-- `P(up)`;
-- signal score;
-- confidence;
-- entry/quality-filter status;
-- previous portfolio weight;
-- DLS target weight;
-- post-trade weight;
-- final EOD weight;
-- submitted buy/sell percentages;
-- filled buy/sell percentages.
+```text
+P(down)
+P(flat)
+P(up)
+signal_score
+confidence
+entry_candidate
+quality_candidate
+previous_weight
+target_weight
+post_trade_weight
+final_eod_weight
+submitted_buy_%
+submitted_sell_%
+filled_buy_%
+filled_sell_%
+```
 
-This allows a user to trace why a stock was selected, ignored, increased, reduced or left unchanged.
+This allows the user to investigate why an individual stock was selected, ignored, increased, reduced, or left unchanged.
 
-### 3. Execution Tape
+## Execution Tape
 
-Focuses on actual filled transactions and execution reconciliation.
+The **Execution Tape** focuses on actual implementation.
 
-It displays information such as:
+It reconciles:
 
-- side;
+```text
+what DLS wanted
+      ↓
+what was submitted
+      ↓
+what actually filled
+```
+
+Typical fields include:
+
+- order side;
+- submitted buy/sell percentage;
+- filled buy/sell percentage;
 - shares;
 - execution price;
 - turnover;
-- trading cost;
-- submitted order percentage;
-- filled percentage.
+- trading cost.
 
-The key purpose is to reveal the difference between what the optimizer wanted and what the execution engine could actually implement.
+This view is important because optimizer targets and executable trades are not assumed to be identical.
 
-### 4. Portfolio State
+## Portfolio State
 
-Provides a portfolio-centric view of the current replay day:
+Provides the exact current holdings snapshot, ranked exposures, market values, shares and EOD weights.
 
-- active holdings;
-- market value;
-- realized portfolio weights;
-- number of names;
-- cash/equity proxies;
-- gross exposure;
-- holdings concentration.
+## Daily Metrics
 
-### 5. Daily Metrics
+Summarizes same-day behavior such as:
 
-Compares same-day engine behavior and portfolio statistics, including:
-
-- DLS vs baseline daily return;
+- daily return;
 - turnover;
-- transaction costs;
-- holdings count;
-- execution activity;
-- cumulative behavior up to the current replay day.
-
-### 6. Model Comparison
-
-A dedicated comparison cockpit for **Base DeepLOB** and **DeepLOB + DLS**.
-
-The dashboard can compare:
-
-- total return;
-- Sharpe ratio;
-- maximum drawdown;
-- portfolio value paths;
-- turnover;
-- cumulative trading cost;
+- transaction cost;
 - number of holdings;
-- order divergence / different trading behavior.
+- gross exposure;
+- cumulative replay statistics;
+- base-vs-DLS day-level differences.
 
-This view is especially useful because the goal of the project is not just to run DLS, but to measure whether the allocation layer improves how DeepLOB probabilities are economically used.
+## Model Comparison
 
-### 7. Training Lab
+Provides the final benchmark comparison between **Base DeepLOB** and **DeepLOB + DLS**, including risk, return, cost and order-divergence views.
 
-Provides DLS training diagnostics when the corresponding exported files are available, including:
+## Training Lab
 
-- train/validation loss history;
+Uses exported DLS training files to inspect:
+
+- training and validation history;
 - early-stopping behavior;
-- seed-search information;
-- selected-seed diagnostics.
+- seed-search results;
+- selected model/seed diagnostics.
 
 ---
 
-## Replay Controls
+# Dashboard Replay State
 
-The sidebar supports interactive navigation through the test period:
+At each selected day, the application constructs a unified engine state containing the current day plus its corresponding:
 
-- Previous / Next day;
-- direct replay-day slider;
-- Play / Pause;
-- playback speeds such as `0.5x`, `1x`, `2x`, `5x`, `10x`;
-- optional loop playback;
-- optional `streamlit-autorefresh`;
-- fast-playback rendering mode to avoid heavy plotting while the replay is running.
+- raw DeepLOB signals;
+- DLS weight-step rows;
+- filled DLS trades;
+- end-of-day DLS holdings;
+- DLS optimizer/debug row;
+- DLS submitted orders;
+- base DeepLOB submitted orders.
 
-The interface uses a single selected engine view rather than rendering all heavy Streamlit tabs simultaneously, which improves responsiveness for large audit tables and charts.
+Because all dashboard screens read from the same replay state, the user can switch from a high-level chart to an asset-level audit without losing the current day context.
 
 ---
 
 ## Dashboard Equity Reconstruction
 
-The DLS replay reconstructs an equity proxy from holdings and target gross exposure:
+The exported files contain detailed DLS holdings, trades and weights, while the base strategy includes a direct daily portfolio-value log.
+
+For replay purposes, the dashboard reconstructs a DLS equity proxy approximately as:
 
 ```text
-raw_equity_proxy = EOD market value / engine target gross
+raw_dls_equity_proxy = EOD market value / target gross
 ```
 
-The path is then normalized to begin at the same initial capital used by the notebook:
+The replay path is then normalized to the notebook's initial capital:
 
 ```text
 RMB 50,000,000
 ```
 
-This keeps visual comparisons between the notebook metrics and dashboard replay on the same capital scale.
+This keeps the visual DLS and baseline paths on a comparable capital scale.
 
 ---
 
-## Dashboard Input Files
+# Dashboard Data Files
 
-The dashboard is driven by notebook-generated audit outputs. Important files include:
+The application is driven by notebook-generated audit exports.
 
-| File | Dashboard role |
+| File | Purpose |
 |---|---|
-| `T001_original_deeplob_exact_raw_oos_signals.csv` | raw DeepLOB probabilities/signals |
-| `T001_dls_weight_step_audit.csv` | asset-level decision chain |
-| `T001_dls_weights_long_shifted_tplus2.csv` | long-format target weights |
-| `T001_dls_trade_audit.csv` | actual DLS fills |
-| `T001_dls_holding_snapshot_audit.csv` | EOD holdings |
-| `T001_dls_weight_debug_shifted_tplus2_conf_filter.csv` | optimizer/filter diagnostics |
-| `T001_original_deeplob_exact_daily_log.csv` | baseline portfolio state |
-| `T001_oos_original_deeplob_exact_sell_close.csv` | baseline submitted orders |
+| `T001_original_deeplob_exact_raw_oos_signals.csv` | raw DeepLOB three-class probabilities and signals |
+| `T001_dls_weight_step_audit.csv` | asset-level DLS decision chain |
+| `T001_dls_weights_long_shifted_tplus2.csv` | long-format target portfolio weights |
+| `T001_dls_trade_audit.csv` | filled DLS trades |
+| `T001_dls_holding_snapshot_audit.csv` | end-of-day portfolio holdings |
+| `T001_dls_weight_debug_shifted_tplus2_conf_filter.csv` | day-level filter/optimizer diagnostics |
+| `T001_original_deeplob_exact_daily_log.csv` | base DeepLOB daily portfolio state |
+| `T001_oos_original_deeplob_exact_sell_close.csv` | base submitted orders |
 | `T001_oos_shifu_dls_kaggle_sell_open.csv` | DLS submitted orders |
-| `T001_comparison_original_deeplob_exact_vs_dls.csv` | final model comparison |
+| `T001_comparison_original_deeplob_exact_vs_dls.csv` | final model comparison metrics |
 | `shifu_dls_seed_search_summary.csv` | seed-search diagnostics |
 | `shifu_dls_training_history_oos.csv` | DLS training history |
 
@@ -772,16 +877,19 @@ DeepLOB-DLS-Asset-Allocation/
 ├── notebooks/
 │   ├── deeplob_dls_asset_allocation.ipynb
 │   └── deeplob_dls_asset_allocation-version1.ipynb
+│
 ├── dashboard/
 │   ├── app.py
 │   ├── README.md
 │   ├── requirements.txt
 │   └── .streamlit/
 │       └── config.toml
+│
 ├── docs/
 │   ├── README.md
 │   ├── DeepLOB_DLS_Report_documentation.pdf
 │   └── DeepLOB_DLS_Asset_Allocation_Documentation.pdf
+│
 ├── assets/
 │   ├── architecture-pipeline.svg
 │   ├── deeplob-dls-network-architecture.svg
@@ -791,7 +899,11 @@ DeepLOB-DLS-Asset-Allocation/
 │   ├── dls-seed-search-ranking.svg
 │   ├── oos-performance-comparison.svg
 │   ├── static-backtest-report.svg
-│   └── weight-distribution-diagnostics.svg
+│   ├── weight-distribution-diagnostics.svg
+│   ├── dashboard-engine-replay.webp
+│   ├── dashboard-model-comparison.jpg
+│   └── dashboard-portfolio-state.webp
+│
 ├── CONTRIBUTIONS.md
 └── README.md
 ```
@@ -806,55 +918,103 @@ Install dependencies:
 pip install -r dashboard/requirements.txt
 ```
 
-Place the notebook-exported CSV files in the dashboard data directory expected by the app, then run:
+The minimal dashboard stack includes:
+
+```text
+streamlit
+pandas
+numpy
+plotly
+streamlit-autorefresh
+```
+
+Place the notebook-generated CSV files in the data directory expected by the dashboard, then launch:
 
 ```bash
 streamlit run dashboard/app.py
 ```
 
-For full dashboard-specific documentation, see [`dashboard/README.md`](dashboard/README.md).
+For dashboard-specific implementation details, see:
+
+[`dashboard/README.md`](dashboard/README.md)
 
 ---
 
-# Limitations and Future Work
+# Research Contributions
 
-Current documented limitations include:
-
-- long-only DLS output due to masked softmax;
-- no active quadratic market-impact term in the current loss;
-- development-time seed selection using OOS total return;
-- a DLS input size tied to the fixed asset universe;
-- evaluation on one main OOS period.
-
-Potential extensions include:
-
-- explicit nonlinear / quadratic trading-impact penalties;
-- validation-only model-selection protocols;
-- attention or graph-based cross-asset architectures;
-- sector / industry risk constraints;
-- equal-weight, top-confidence and mean-variance allocation baselines;
-- walk-forward evaluation across multiple OOS regimes;
-- more realistic slippage and market-impact calibration.
-
----
-
-# Contribution
-
-The contribution of this module is a full **research-to-execution workflow**, not just a neural network:
+The contribution of this module is not just one neural network. It is the integration of a complete **research-to-execution workflow**:
 
 ```text
 market data
-→ causal feature engineering
-→ DeepLOB prediction
-→ DLS signal representation
-→ learned asset allocation
-→ execution-aware portfolio construction
-→ realistic order simulation
-→ detailed audit outputs
-→ interactive replay and model comparison
+    ↓
+causal feature engineering
+    ↓
+DeepLOB probability inference
+    ↓
+probability-derived DLS features
+    ↓
+learned cross-sectional asset allocation
+    ↓
+quality and tradability filtering
+    ↓
+execution-aware portfolio construction
+    ↓
+realistic order simulation
+    ↓
+trade + holding + decision audit files
+    ↓
+interactive trading-engine replay
 ```
 
-For contribution provenance and original branch history, see [`CONTRIBUTIONS.md`](CONTRIBUTIONS.md).
+Notable implemented components include:
+
+- using the full DeepLOB probability vector rather than only a hard class label;
+- constructing directional score and confidence features;
+- learning portfolio weights with a temporal LSTM allocator;
+- optimizing a portfolio-level financial objective;
+- explicitly controlling turnover and implementation cost;
+- enforcing a shifted no-lookahead execution convention;
+- exporting detailed state-transition audits;
+- comparing DLS against the original DeepLOB baseline;
+- replaying the complete decision funnel interactively in Streamlit.
+
+For contribution provenance and original branch history, see:
+
+[`CONTRIBUTIONS.md`](CONTRIBUTIONS.md)
+
+---
+
+# Limitations
+
+This repository is a research implementation, not a production trading system.
+
+Important limitations include:
+
+- DLS is currently long-only due to masked-softmax allocation;
+- the current loss does not activate a quadratic market-impact term;
+- development-time seed selection is based on OOS total return in the documented experiment;
+- the DLS input dimension is tied to a fixed asset universe;
+- execution is simulated rather than routed to a live exchange;
+- liquidity and market impact can differ materially in live conditions;
+- the reported experiment represents one main OOS interval and should not be interpreted as evidence of future performance.
+
+---
+
+# Future Work
+
+Natural next steps include:
+
+- validation-only seed/model selection;
+- nonlinear volatility-aware risk penalties;
+- explicit quadratic market-impact modeling;
+- dynamic transaction-cost calibration;
+- linear / AR / statistical allocation baselines;
+- equal-weight and top-confidence portfolio baselines;
+- attention- or graph-based cross-asset architectures;
+- sector/industry neutrality constraints;
+- walk-forward evaluation across multiple market regimes;
+- richer performance attribution;
+- paper-trading or live-market-data integration.
 
 ---
 
@@ -867,4 +1027,4 @@ GitHub: `MohammadrezaSheikholeslami84`
 
 ## Disclaimer
 
-This repository is intended for **research and educational purposes only**. Historical and backtested performance does not guarantee future results.
+This repository is intended for **research and educational purposes only**. Nothing in this repository constitutes financial or investment advice. Historical and backtested results do not guarantee future performance.
