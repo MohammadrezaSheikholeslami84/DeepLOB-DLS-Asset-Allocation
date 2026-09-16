@@ -49,10 +49,10 @@ Latest executed notebook snapshot:
 ## System Architecture
 
 <p align="center">
-  <img src="assets/architecture-pipeline.png" alt="End-to-end DeepLOB + DLS pipeline" width="840">
+  <img src="assets/architecture-pipeline.svg" alt="End-to-end DeepLOB + DLS pipeline" width="840">
 </p>
 
-<p align="center"><em>End-to-end DeepLOB + DLS portfolio pipeline.</em></p>
+<p align="center"><em>End-to-end DeepLOB + DLS portfolio pipeline, reconstructed from the project report.</em></p>
 
 ---
 
@@ -61,7 +61,7 @@ Latest executed notebook snapshot:
 ### 1) DeepLOB + DLS network overview
 
 <p align="center">
-  <img src="assets/deeplob-dls-network-architecture.png" alt="DeepLOB and DLS network architecture" width="960">
+  <img src="assets/deeplob-dls-network-architecture.svg" alt="DeepLOB and DLS network architecture" width="960">
 </p>
 
 **DeepLOB** is used as the **signal generation model**. For each asset and day, it outputs `pdown`, `pflat`, and `pup`. These probabilities are then transformed into DLS features and fed into the portfolio-allocation model.
@@ -69,7 +69,7 @@ Latest executed notebook snapshot:
 ### 2) DLS data-flow pipeline
 
 <p align="center">
-  <img src="assets/dls-dataflow-pipeline.png" alt="DLS data flow" width="820">
+  <img src="assets/dls-dataflow-pipeline.svg" alt="DLS data flow" width="820">
 </p>
 
 The DLS feature vector for each asset/day is built from `pdown`, `pflat`, `pup`, `signal_score = pup - pdown`, and `confidence = |signal_score| × (1 - pflat)`. A 50-day temporal window is then passed through an LSTM-based allocator to produce **long-only target portfolio weights**.
@@ -81,7 +81,7 @@ The DLS feature vector for each asset/day is built from `pdown`, `pflat`, `pup`,
 The DLS model is not trained with a classification loss. It is trained with a **portfolio-level differentiable objective** designed to reward better risk-adjusted returns while penalizing undesirable trading behavior.
 
 <p align="center">
-  <img src="assets/dls-objective-components.png" alt="DLS objective components" width="860">
+  <img src="assets/dls-objective-components.svg" alt="DLS objective components" width="860">
 </p>
 
 Active terms include **Sharpe**, **Sortino**, **drawdown**, **turnover**, **concentration**, **inventory/gross-exposure**, and **commission** terms. The optional sparsity term is configured as zero in the final notebook.
@@ -93,7 +93,7 @@ Active terms include **Sharpe**, **Sortino**, **drawdown**, **turnover**, **conc
 The execution engine converts theoretical target weights into feasible trades while respecting tradability masks, rebalance bands, lot-size rules, cash buffers, minimum holdings, commissions, stamp duty, sell-before-buy sequencing, and partial-fill feasibility checks.
 
 <p align="center">
-  <img src="assets/execution-engine-flowchart.png" alt="Execution engine flowchart" width="900">
+  <img src="assets/execution-engine-flowchart.svg" alt="Execution engine flowchart" width="900">
 </p>
 
 This bridges the gap between **model output** and **executable trading behavior**.
@@ -105,7 +105,7 @@ This bridges the gap between **model output** and **executable trading behavior*
 Multiple DLS seeds were trained and evaluated. The selected seed in the documented run is **33**.
 
 <p align="center">
-  <img src="assets/dls-seed-search-ranking.png" alt="DLS seed search ranking" width="880">
+  <img src="assets/dls-seed-search-ranking.svg" alt="DLS seed search ranking" width="880">
 </p>
 
 ---
@@ -113,7 +113,7 @@ Multiple DLS seeds were trained and evaluated. The selected seed in the document
 ## Out-of-Sample Performance Comparison
 
 <p align="center">
-  <img src="assets/oos-performance-comparison.png" alt="OOS performance comparison" width="860">
+  <img src="assets/oos-performance-comparison.svg" alt="OOS performance comparison" width="860">
 </p>
 
 The DLS allocation layer improves total return, risk-adjusted performance, drawdown control, and score proxy relative to the original DeepLOB-only exact baseline.
@@ -123,7 +123,7 @@ The DLS allocation layer improves total return, risk-adjusted performance, drawd
 ## Static Backtest Diagnostics
 
 <p align="center">
-  <img src="assets/static-backtest-report.png" alt="Static DLS backtest report" width="960">
+  <img src="assets/static-backtest-report.svg" alt="Static DLS backtest report" width="960">
 </p>
 
 The report includes portfolio value, daily-return distribution, drawdown, rolling Sharpe, holdings, and transaction-cost behavior.
@@ -133,7 +133,7 @@ The report includes portfolio value, daily-return distribution, drawdown, rollin
 ## Weight Distribution Diagnostics
 
 <p align="center">
-  <img src="assets/weight-distribution-diagnostics.png" alt="Weight distribution diagnostics" width="900">
+  <img src="assets/weight-distribution-diagnostics.svg" alt="Weight distribution diagnostics" width="900">
 </p>
 
 These charts inspect positive DLS target weights, log-weight behavior, active names over time, and max/median target weights.
@@ -158,7 +158,15 @@ DeepLOB-DLS-Asset-Allocation/
 │   ├── DeepLOB_DLS_Report_documentation.pdf
 │   └── DeepLOB_DLS_Asset_Allocation_Documentation.pdf
 ├── assets/
-│   └── README figures
+│   ├── architecture-pipeline.svg
+│   ├── deeplob-dls-network-architecture.svg
+│   ├── dls-dataflow-pipeline.svg
+│   ├── dls-objective-components.svg
+│   ├── execution-engine-flowchart.svg
+│   ├── dls-seed-search-ranking.svg
+│   ├── oos-performance-comparison.svg
+│   ├── static-backtest-report.svg
+│   └── weight-distribution-diagnostics.svg
 ├── CONTRIBUTIONS.md
 └── README.md
 ```
